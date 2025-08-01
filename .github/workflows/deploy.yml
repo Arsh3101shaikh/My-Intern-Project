@@ -1,0 +1,30 @@
+name: Deploy to EC2
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout source code
+      uses: actions/checkout@v3
+
+    - name: Set up SSH key
+      run: |
+        echo "${{ secrets.EC2_SSH_KEY }}" > key.pem
+        chmod 600 key.pem
+
+    - name: SSH and deploy
+      run: |
+        ssh -i key.pem -o StrictHostKeyChecking=no ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} << 'EOF'
+          cd ${{ secrets.EC2_APP_DIR }}
+          docker stop order-management-backend || true
+          docker rm order-management-backend || true
+          docker rmi order-management-backend || true
+          docker build -t order-management-backend /home/ubuntu/My-Intern-Project/backend
+          docker run -d -p 8080:8080 --name order-management-backend order-management-backend
+        EOF
