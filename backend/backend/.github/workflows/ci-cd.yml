@@ -1,0 +1,46 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ "main" ]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v3
+
+    - name: Set up JDK 17
+      uses: actions/setup-java@v3
+      with:
+        java-version: '17'
+        distribution: 'temurin'
+
+    - name: Build with Maven
+      run: |
+        cd backend
+        ./mvnw clean package -DskipTests
+
+    - name: Copy Files to Server via SSH
+      uses: appleboy/scp-action@master
+      with:
+        host: ${{ secrets.SERVER_IP }}
+        username: ${{ secrets.SERVER_USER }}
+        key: ${{ secrets.SSH_KEY }}
+        source: "backend/target/backend-1.0.0.jar,Dockerfile"
+        target: "/home/ubuntu/My-Intern-Project"
+
+    - name: Deploy via SSH
+      uses: appleboy/ssh-action@master
+      with:
+        host: ${{ secrets.SERVER_IP }}
+        username: ${{ secrets.SERVER_USER }}
+        key: ${{ secrets.SSH_KEY }}
+        script: |
+          cd /home/ubuntu/My-Intern-Project
+          docker stop backend-app || true
+          docker rm backend-app || true
+          docker build -t backend-image .
+          docker run -d --name backend-app -p 8080:8080 backend-image
